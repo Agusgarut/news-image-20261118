@@ -3,15 +3,13 @@
 
 A newspaper front page for Wednesday 18 November 2026: masthead,
 giant serif date, 13 numbered story panels in 3 rows, a world map
-with numbered pins, a 30-item "also" index, and a stat strip. Four
-panels (1 Gulf, 2 APEC, 3 Senate, 10 Voyager) use generated
-photographs from assets/ instead of drawings; the other nine panels
-are drawn with Pillow. All headlines, drawings and words are my own.
+with numbered pins, a 30-item "also" index, and a stat strip. All 13
+panels use generated photographs from assets/ instead of drawings.
 Deterministic: a fixed seed and fixed photo crops, so every run
 writes identical bytes.
 Run: python3 tools/generate-image.py
 """
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter
 import math
 import os
 import random
@@ -361,45 +359,60 @@ d.text((112, 92), _sub, font=font(SERIF, 14), fill=(198, 206, 218))
 # ---------- generated photos: real photographs composited into all 13 panels ----------
 # The photos live in assets/ (committed to the repo) so the generator
 # runs offline and deterministically: same files, same fixed crops,
-# same bytes every run. Each entry is (file, focus): focus is the
-# fraction of the spare vertical range to skip when centre-cropping
-# the photo to the panel's wide aspect ratio, so the main subject
-# (explosion + warship, the two leaders' faces, the Capitol dome,
-# the nurse + child, the PPE worker, the cyclone eye, the lit tents,
-# the driverless car, the frosted freezers, the dish + Earth, the
-# falling red chart, the launcher, the troops + flags) is never cut off.
+# same bytes every run. Each entry is (file, fy, zoom, fx, bright):
+# fy is the fraction of the spare vertical range to skip when
+# centre-cropping the photo to the panel's wide aspect ratio; zoom is
+# the fraction of the photo's width to keep (zoom < 1 crops tighter
+# onto the main subject, so it reads big and clear even in a 60px-tall
+# panel); fx is the horizontal centre of that crop as a fraction of
+# the photo width; bright lifts dark photos. Subjects were located by
+# inspecting each source photo: explosion + warship, the two leaders'
+# faces, the Capitol dome, the nurse + child, the PPE worker, the
+# cyclone eye, the lit tents, the driverless car, the frosted freezers
+# + warning sign, the dish + Earth, the falling red chart, the
+# launcher, the troops + flags.
 PHOTOS = {
-    "gulf": ("panel1-gulf.jpg", 0.70),
-    "apec": ("panel2-apec.jpg", 0.30),
-    "senate": ("panel3-capitol.jpg", 0.10),
-    "measles": ("panel4-measles.jpg", 0.60),
-    "ebola": ("panel5-ebola.jpg", 0.35),
-    "cyclone": ("panel6-xavier.jpg", 0.50),
-    "gaza": ("panel7-gaza.jpg", 0.45),
-    "waymo": ("panel8-waymo.jpg", 0.45),
-    "cyber": ("panel9-freezer.jpg", 0.30),
-    "voyager": ("panel10-voyager.jpg", 0.30),
-    "markets": ("panel11-markets.jpg", 0.35),
-    "patriot": ("panel12-patriot.jpg", 0.40),
-    "border": ("panel13-border.jpg", 0.40),
+    "gulf": ("panel1-gulf.jpg", 0.65, 0.85, 0.50, 1.05),
+    "apec": ("panel2-apec.jpg", 0.35, 0.90, 0.50, 1.00),
+    "senate": ("panel3-capitol.jpg", 0.15, 0.90, 0.50, 1.00),
+    "measles": ("panel4-measles.jpg", 0.55, 0.55, 0.45, 1.00),
+    "ebola": ("panel5-ebola.jpg", 0.45, 0.60, 0.50, 1.00),
+    "cyclone": ("panel6-xavier.jpg", 0.50, 0.70, 0.50, 1.00),
+    "gaza": ("panel7-gaza.jpg", 0.50, 0.70, 0.65, 1.05),
+    "waymo": ("panel8-waymo.jpg", 0.35, 0.65, 0.65, 1.00),
+    "cyber": ("panel9-freezer.jpg", 0.30, 0.55, 0.30, 1.14),
+    "voyager": ("panel10-voyager.jpg", 0.30, 0.70, 0.62, 1.18),
+    "markets": ("panel11-markets.jpg", 0.35, 0.70, 0.50, 1.08),
+    "patriot": ("panel12-patriot.jpg", 0.45, 0.70, 0.50, 1.00),
+    "border": ("panel13-border.jpg", 0.55, 0.85, 0.50, 1.00),
 }
 _photo_cache = {}
 
 
 def paste_photo(kind, x, y, w, h):
-    fname, fy = PHOTOS[kind]
+    fname, fy, zoom, fx, bright = PHOTOS[kind]
     if kind not in _photo_cache:
         _photo_cache[kind] = Image.open(
             os.path.join(BASE, "assets", fname)).convert("RGB")
     src = _photo_cache[kind]
     sw, sh = src.size
     target = w / h
-    cw, ch = sw, int(sw / target)
+    # tight crop onto the subject: keep zoom of the width, then fit
+    # the panel aspect inside that window
+    cw = int(sw * zoom)
+    ch = int(cw / target)
     if ch > sh:
         ch, cw = sh, int(sh * target)
+    left = int(fx * sw - cw / 2)
+    left = max(0, min(sw - cw, left))
     top = int((sh - ch) * fy) if ch < sh else 0
-    left = (sw - cw) // 2
     crop = src.crop((left, top, left + cw, top + ch)).resize((w, h), Image.LANCZOS)
+    # sharpen + lift colour/contrast so the photo still reads at 60px
+    if bright != 1.0:
+        crop = ImageEnhance.Brightness(crop).enhance(bright)
+    crop = ImageEnhance.Color(crop).enhance(1.18)
+    crop = ImageEnhance.Contrast(crop).enhance(1.12)
+    crop = crop.filter(ImageFilter.UnsharpMask(radius=2, percent=85, threshold=2))
     img.paste(crop, (x, y))
 
 
