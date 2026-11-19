@@ -3,9 +3,12 @@
 
 A newspaper front page for Wednesday 18 November 2026: masthead,
 giant serif date, 13 numbered story panels in 3 rows, a world map
-with numbered pins, a 30-item "also" index, and a stat strip. All
-headlines, drawings and words are my own; no photos, no downloaded
-art. Deterministic: a fixed seed, so every run writes identical bytes.
+with numbered pins, a 30-item "also" index, and a stat strip. Four
+panels (1 Gulf, 2 APEC, 3 Senate, 10 Voyager) use generated
+photographs from assets/ instead of drawings; the other nine panels
+are drawn with Pillow. All headlines, drawings and words are my own.
+Deterministic: a fixed seed and fixed photo crops, so every run
+writes identical bytes.
 Run: python3 tools/generate-image.py
 """
 from PIL import Image, ImageDraw, ImageFont
@@ -355,8 +358,45 @@ d.text((112, 34), _date, font=font(SERIFB, _dsize), fill=(255, 255, 255))
 _sub = "Everything on this page happened, or was first reported, on Wednesday 18 November 2026."
 d.text((112, 92), _sub, font=font(SERIF, 14), fill=(198, 206, 218))
 
+# ---------- generated photos: real photographs composited into 4 panels ----------
+# The photos live in assets/ (committed to the repo) so the generator
+# runs offline and deterministically: same files, same fixed crops,
+# same bytes every run. Each entry is (file, focus): focus is the
+# fraction of the spare vertical range to skip when centre-cropping
+# the photo to the panel's wide aspect ratio, so the main subject
+# (explosion + warship, the two leaders' faces, the Capitol dome,
+# the dish + Earth) is never cut off.
+PHOTOS = {
+    "gulf": ("panel1-gulf.jpg", 0.70),
+    "apec": ("panel2-apec.jpg", 0.30),
+    "senate": ("panel3-capitol.jpg", 0.10),
+    "voyager": ("panel10-voyager.jpg", 0.30),
+}
+_photo_cache = {}
+
+
+def paste_photo(kind, x, y, w, h):
+    fname, fy = PHOTOS[kind]
+    if kind not in _photo_cache:
+        _photo_cache[kind] = Image.open(
+            os.path.join(BASE, "assets", fname)).convert("RGB")
+    src = _photo_cache[kind]
+    sw, sh = src.size
+    target = w / h
+    cw, ch = sw, int(sw / target)
+    if ch > sh:
+        ch, cw = sh, int(sh * target)
+    top = int((sh - ch) * fy) if ch < sh else 0
+    left = (sw - cw) // 2
+    crop = src.crop((left, top, left + cw, top + ch)).resize((w, h), Image.LANCZOS)
+    img.paste(crop, (x, y))
+
+
 # ---------- pictograms: each fills its panel edge to edge ----------
 def pic(kind, x, y, w, h):
+    if kind in PHOTOS:
+        paste_photo(kind, x, y, w, h)
+        return
     if kind == "gulf":
         # the Gulf at night: dark sky above, a gold horizon, missile
         # trails streaking diagonally down to the strike on Qeshm
@@ -1211,9 +1251,11 @@ def draw_panel(x, y, w, h, p, large):
     d.rounded_rectangle([x + 2, y + 2, x + w + 2, y + h + 2], radius=4, fill=(190, 180, 160))
     d.rounded_rectangle([x, y, x + w, y + h], radius=4, fill=(255, 255, 255), outline=NAVY, width=2)
     pic(kind, x + 2, y + 2, w - 4, pic_h)
-    # cinematic grade over the picture only: warm golden light for
-    # day scenes, cool moonlight for the night boards
-    if kind in ("voyager", "markets", "waymo"):
+    # cinematic grade over the picture only (skipped for the photo
+    # panels: the photographs already carry their own light)
+    if kind in PHOTOS:
+        pass
+    elif kind in ("voyager", "markets", "waymo"):
         cinema_grade(x + 2, y + 2, w - 4, pic_h, warm=(140, 170, 255), strength=14)
     else:
         cinema_grade(x + 2, y + 2, w - 4, pic_h)
@@ -1460,10 +1502,10 @@ for ci in range(2):
 
 # ---------- footer ----------
 d.text((16, 976), "Every story here happened or was first reported on Wednesday 18 November 2026.",
-       font=font(SANS, 13), fill=GREY)
-foot_r = "Sources: Reuters, AP, AFP, BBC, Al Jazeera. Original drawings."
-d.text((W - 16 - d.textlength(foot_r, font=font(SANS, 13)), 976), foot_r,
-       font=font(SANS, 13), fill=GREY)
+       font=font(SANS, 12), fill=GREY)
+foot_r = "Sources: Reuters, AP, AFP, BBC, Al Jazeera. Illustrations generated."
+d.text((W - 16 - d.textlength(foot_r, font=font(SANS, 12)), 976), foot_r,
+       font=font(SANS, 12), fill=GREY)
 
 # a whisper of film grain over the whole page (seeded, so it is identical
 # every run): it takes the flat digital edge off the paper and the drawings
