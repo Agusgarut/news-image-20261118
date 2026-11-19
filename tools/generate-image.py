@@ -116,6 +116,40 @@ def mgrad(x, y, w, h, stops):
         d.line([(x, y + i), (x + w, y + i)], fill=col)
 
 
+def cinema_grade(x, y, w, h, warm=(255, 176, 92), strength=26):
+    """Cinematic grade, clipped to one picture: a warm golden wash
+    falling from the top, a dark foreground shade at the bottom, and
+    a soft vignette at the edges. Alpha only, drawn on an overlay and
+    pasted in, so nothing spills outside the rect and text drawn later
+    stays crisp."""
+    ov = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    od = ImageDraw.Draw(ov)
+    half = max(1, h // 2)
+    for i in range(half):
+        a = int(strength * (1 - i / half))
+        od.line([(x, y + i), (x + w, y + i)], fill=warm + (a,), width=1)
+    bot = max(1, h // 3)
+    for i in range(bot):
+        a = int(44 * (i / bot))
+        od.line([(x, y + h - bot + i), (x + w, y + h - bot + i)],
+                fill=(8, 14, 28) + (a,), width=1)
+    edge = 9
+    for i in range(edge):
+        a = int(20 * (1 - i / edge))
+        od.line([(x + i, y), (x + i, y + h)], fill=(8, 14, 28) + (a,), width=1)
+        od.line([(x + w - i, y), (x + w - i, y + h)], fill=(8, 14, 28) + (a,), width=1)
+    img.paste(ov, (0, 0), ov)
+
+
+def missile_trail(x0, y0, x1, y1, sky):
+    """A bright diagonal missile trail with a glowing head, like the
+    night-sky shots in the reference: white-hot core, gold halo."""
+    soft_disc(x1, y1, 5, 3, (255, 220, 140), sky, steps=3)
+    d.line([(x0, y0), (x1, y1)], fill=(255, 190, 90), width=3)
+    d.line([(x0, y0), (x1, y1)], fill=(255, 255, 230), width=1)
+    d.ellipse([x1 - 2, y1 - 2, x1 + 2, y1 + 2], fill=(255, 255, 240))
+
+
 def speckle(x, y, w, h, n, seed, cols, r=1):
     """Seeded texture flecks clipped to a rect (deterministic)."""
     rr = random.Random(seed)
@@ -295,36 +329,52 @@ def flag(kind, x, y, w, h):
 vgrad(0, 0, W, H, (248, 243, 226), (236, 227, 203))
 d.rectangle([5, 5, W - 6, H - 6], outline=NAVY, width=2)
 
-# ---------- masthead ----------
-d.text((16, 12), "THE WORLD'S NEWS IN ONE PICTURE", font=font(SANSB, 16), fill=RED)
-right = "43 STORIES  ·  6 CONTINENTS  ·  ALL FROM THIS ONE DAY"
-d.text((W - 16 - d.textlength(right, font=font(SANSB, 16)), 12), right,
-       font=font(SANSB, 16), fill=GREY)
+# ---------- masthead: navy band, date box, white serif date ----------
+d.rectangle([0, 0, W, 118], fill=NAVY)
+d.rectangle([0, 118, W, 122], fill=(212, 175, 55))
+# date box, left: red NOV, big 18, WED 2026
+d.rectangle([10, 8, 98, 108], fill=(255, 255, 255), outline=(212, 175, 55), width=1)
+d.rectangle([10, 8, 98, 34], fill=RED)
+d.text((54 - d.textlength("NOV", font=font(SANSB, 15)) / 2, 12), "NOV",
+       font=font(SANSB, 15), fill=(255, 255, 255))
+d.text((54 - d.textlength("18", font=font(SERIFB, 42)) / 2, 36), "18",
+       font=font(SERIFB, 42), fill=NAVY)
+d.text((54 - d.textlength("WED · 2026", font=font(SANSB, 9)) / 2, 88), "WED · 2026",
+       font=font(SANSB, 9), fill=GREY)
+d.text((112, 10), "THE WORLD'S NEWS IN ONE PICTURE", font=font(SANSB, 13),
+       fill=(212, 175, 55))
+_right = "43 STORIES  ·  6 CONTINENTS  ·  ONE PAGE"
+d.text((W - 16 - d.textlength(_right, font=font(SANSB, 13)), 10), _right,
+       font=font(SANSB, 13), fill=(212, 175, 55))
 # giant date, auto-fit so the longer Wednesday date still fits
 _date = "Wednesday 18 November 2026"
-_dsize = 60
-while d.textlength(_date, font=font(SERIFB, _dsize)) > W - 32 and _dsize > 40:
+_dsize = 54
+while d.textlength(_date, font=font(SERIFB, _dsize)) > W - 112 - 16 and _dsize > 40:
     _dsize -= 1
-_tw = d.textlength(_date, font=font(SERIFB, _dsize))
-d.text(((W - _tw) / 2, 36), _date, font=font(SERIFB, _dsize), fill=INK)
-d.line([16, 110, W - 16, 110], fill=INK, width=3)
-d.line([16, 115, W - 16, 115], fill=INK, width=1)
+d.text((112, 34), _date, font=font(SERIFB, _dsize), fill=(255, 255, 255))
+_sub = "Everything on this page happened, or was first reported, on Wednesday 18 November 2026."
+d.text((112, 92), _sub, font=font(SERIF, 14), fill=(198, 206, 218))
 
 # ---------- pictograms: each fills its panel edge to edge ----------
 def pic(kind, x, y, w, h):
     if kind == "gulf":
-        # the Gulf at dusk: multi-stop sky, textured clouds, a missile
-        # site on Qeshm flashing, US base markers, a tanker
-        mgrad(x, y, w, h, [(0.0, (255, 198, 128)), (0.35, (238, 148, 92)),
-                           (0.6, (172, 108, 104)), (1.0, (120, 84, 96))])
-        sun_glow(x + w - 60, y + 32, 5, (238, 148, 92))
-        cloud_puff(x + 50, y + 9, 10, (238, 148, 92))
-        cloud_puff(x + w - 130, y + 6, 8, (238, 148, 92), dark=(140, 110, 120))
+        # the Gulf at night: dark sky above, a gold horizon, missile
+        # trails streaking diagonally down to the strike on Qeshm
+        mgrad(x, y, w, h, [(0.0, (14, 18, 42)), (0.45, (52, 42, 74)),
+                           (0.7, (140, 82, 66)), (1.0, (214, 132, 74))])
+        sun_glow(x + w - 60, y + 32, 5, (140, 82, 66))
+        cloud_puff(x + 50, y + 9, 10, (52, 42, 74))
+        cloud_puff(x + w - 130, y + 6, 8, (52, 42, 74), dark=(140, 110, 120))
         # a distant ship silhouette on the horizon, lights on
         d.rectangle([x + w - 168, y + 38, x + w - 136, y + 44], fill=(70, 60, 66))
         d.rectangle([x + w - 158, y + 32, x + w - 146, y + 38], fill=(70, 60, 66))
         for lx_ in (x + w - 164, x + w - 154, x + w - 144):
             d.rectangle([lx_, y + 40, lx_ + 2, y + 42], fill=(255, 210, 120))
+        # diagonal missile trails streaking across the night sky,
+        # like the reference's Gulf shot: bright heads, gold tails
+        missile_trail(x + w - 30, y + 4, x + w // 2 + 30, y + 28, (52, 42, 74))
+        missile_trail(x + w - 120, y + 2, x + w // 2 - 6, y + 26, (52, 42, 74))
+        missile_trail(x + w - 210, y + 6, x + w // 2 + 44, y + 30, (52, 42, 74))
         # fighter jets with contrails over the open water
         for jx, jy in [(x + 56, y + 34), (x + 260, y + 32)]:
             d.line([(jx - 34, jy + 6), (jx - 6, jy + 2)], fill=(255, 255, 255), width=2)
@@ -333,9 +383,9 @@ def pic(kind, x, y, w, h):
             d.polygon([(jx - 2, jy - 3), (jx + 2, jy + 2), (jx - 4, jy + 3)], fill=(60, 60, 70))
         # irregular smoke plumes rising from the strike on Qeshm,
         # with hot ash drifting up
-        smoke_plume(x + w // 2 + 14, y + 30, 9, (48, 42, 40), (238, 148, 92), 11, n=8)
-        smoke_plume(x + w // 2 - 34, y + 34, 6, (70, 62, 58), (238, 148, 92), 23, n=5)
-        embers(x + w // 2 + 14, y + 28, 8, 7, 31, (238, 148, 92))
+        smoke_plume(x + w // 2 + 14, y + 30, 9, (48, 42, 40), (70, 58, 80), 11, n=8)
+        smoke_plume(x + w // 2 - 34, y + 34, 6, (70, 62, 58), (70, 58, 80), 23, n=5)
+        embers(x + w // 2 + 14, y + 28, 8, 7, 31, (70, 58, 80))
         # radar tower on the Iranian coast, right of the sun glow
         d.rectangle([x + w - 78, y + 6, x + w - 74, y + 22], fill=(90, 85, 80))
         d.ellipse([x + w - 83, y + 2, x + w - 69, y + 10], fill=(200, 200, 200),
@@ -354,9 +404,9 @@ def pic(kind, x, y, w, h):
         for wy in (y + h - 22, y + h - 14, y + h - 7):
             for wx in range(x + 6, x + w - 12, 26):
                 d.arc([wx, wy - 3, wx + 14, wy + 3], 180, 360, fill=(190, 225, 230), width=1)
-        # Iran: sandy coast along the top edge
+        # Iran: dark sandy coast along the top edge, at night
         d.polygon([(x, y), (x + w, y), (x + w, y + 18), (x + w * 0.7, y + 26),
-                   (x + w * 0.4, y + 16), (x, y + 22)], fill=(224, 198, 150),
+                   (x + w * 0.4, y + 16), (x, y + 22)], fill=(176, 146, 108),
                   outline=(150, 120, 80))
         d.text((x + 10, y + 2), "IRAN", font=font(SANSB, 9), fill=(110, 85, 50))
         # Qeshm Island: a long low island mid-frame, with the strike flash
@@ -461,6 +511,13 @@ def pic(kind, x, y, w, h):
             d.pieslice([hx_ - 5, y + 26, hx_ + 5, y + 32], 180, 360, fill=hair)
             d.pieslice([hx_ - 11, y + 34, hx_ + 11, y + 48], 180, 360, fill=suit)
             d.line([(hx_ - 1, y + 36), (hx_ - 1, y + 42)], fill=(255, 255, 255), width=1)
+        # the two central leaders rise and shake hands across the
+        # table, like the airport-welcome shot in the reference:
+        # arms reaching to the middle, hands clasped
+        d.line([(x + 138, y + 38), (x + 160, y + 40)], fill=(70, 40, 44), width=3)
+        d.line([(x + 182, y + 38), (x + 160, y + 40)], fill=(36, 56, 44), width=3)
+        d.ellipse([x + 155, y + 36, x + 165, y + 44], fill=(222, 184, 150),
+                  outline=NAVY, width=1)
         # the long table: wood top, dark front, red carpet below
         d.rectangle([x + 6, y + 40, x + w - 6, y + h - 14], fill=(146, 102, 66))
         d.rectangle([x + 6, y + 40, x + w - 6, y + 46], fill=(190, 140, 90))
@@ -672,10 +729,12 @@ def pic(kind, x, y, w, h):
         for wy in (y + h - 12, y + h - 6):
             for wx in range(x + 6, x + w - 12, 24):
                 d.arc([wx, wy - 2, wx + 12, wy + 2], 180, 360, fill=(190, 225, 235), width=1)
-        # spiral arms: concentric arcs shrinking toward the eye
+        # spiral arms: thick concentric arcs shrinking toward the eye,
+        # seen from above like the reference's cyclone shot
         cx, cy = x + w // 2, y + h // 2 - 6
+        soft_disc(cx, cy, 12, 12, (255, 240, 170), (52, 74, 118), steps=3)
         for rr, a0, a1 in [(34, 20, 200), (26, 160, 340), (18, 300, 120), (10, 80, 260)]:
-            d.arc([cx - rr, cy - rr, cx + rr, cy + rr], a0, a1, fill=(255, 255, 255), width=6)
+            d.arc([cx - rr, cy - rr, cx + rr, cy + rr], a0, a1, fill=(255, 255, 255), width=8)
         d.ellipse([cx - 6, cy - 6, cx + 6, cy + 6], fill=(255, 235, 150))
         d.ellipse([cx - 3, cy - 3, cx + 3, cy + 3], fill=(255, 255, 255))
         # wind streaks at the edges
@@ -1152,6 +1211,12 @@ def draw_panel(x, y, w, h, p, large):
     d.rounded_rectangle([x + 2, y + 2, x + w + 2, y + h + 2], radius=4, fill=(190, 180, 160))
     d.rounded_rectangle([x, y, x + w, y + h], radius=4, fill=(255, 255, 255), outline=NAVY, width=2)
     pic(kind, x + 2, y + 2, w - 4, pic_h)
+    # cinematic grade over the picture only: warm golden light for
+    # day scenes, cool moonlight for the night boards
+    if kind in ("voyager", "markets", "waymo"):
+        cinema_grade(x + 2, y + 2, w - 4, pic_h, warm=(140, 170, 255), strength=14)
+    else:
+        cinema_grade(x + 2, y + 2, w - 4, pic_h)
     sy = y + 2 + pic_h
     d.rectangle([x + 2, sy, x + w - 2, sy + strip_h], fill=col)
     d.text((x + 10, sy + 2), cap, font=font(SANSB, 10 if large else 9), fill=(255, 255, 255))
@@ -1191,7 +1256,7 @@ d.rounded_rectangle([mx + 2, by + 2, mx + mw + 2, by + mh + 2], radius=4, fill=(
 d.rounded_rectangle([mx, by, mx + mw, by + mh], radius=4, fill=(255, 255, 255), outline=NAVY, width=2)
 d.text((mx + 12, by + 10), "WHERE IT HAPPENED", font=font(SANSB, 16), fill=NAVY)
 d.line([mx + 12, by + 34, mx + mw - 12, by + 34], fill=NAVY, width=2)
-mapx, mapy, mapw, maph = mx + 10, by + 40, mw - 20, 170
+mapx, mapy, mapw, maph = mx + 10, by + 40, mw - 20, 160
 vgrad(mapx, mapy, mapw, maph, (202, 226, 238), (164, 196, 222))
 
 
@@ -1203,7 +1268,19 @@ def ll(lon, lat):
 def land(poly, label=None, lab_lon=None, lab_lat=None):
     pts = [ll(lo, la) for lo, la in poly]
     d.polygon([(px + 2, py + 2) for px, py in pts], fill=(206, 184, 138))
-    d.polygon(pts, fill=(233, 214, 168), outline=(110, 88, 55), width=1)
+    # dotted fill, like the reference's dot-matrix world map: a mask
+    # of the polygon, then a grid of small slate dots inside it
+    mask = Image.new("L", (W, H), 0)
+    md = ImageDraw.Draw(mask)
+    md.polygon(pts, fill=255)
+    mp = mask.load()
+    xs = [p[0] for p in pts]
+    ys = [p[1] for p in pts]
+    for gx in range(int(min(xs)) + 2, int(max(xs)), 5):
+        for gy in range(int(min(ys)) + 2, int(max(ys)), 5):
+            if 0 <= gx < W and 0 <= gy < H and mp[gx, gy]:
+                d.ellipse([gx - 1, gy - 1, gx + 1, gy + 1], fill=(96, 128, 138))
+    d.polygon(pts, outline=(110, 88, 55), width=1)
     d.line(pts[:3], fill=(248, 236, 200), width=1)
     if label:
         lx_, ly_ = ll(lab_lon, lab_lat)
@@ -1225,7 +1302,7 @@ LAND = [
       (-70, 42), (-75, 35), (-80, 26), (-90, 21), (-97, 16), (-92, 14), (-83, 9),
       (-79, 9), (-83, 15), (-90, 14), (-97, 26), (-105, 20), (-110, 24), (-120, 34),
       (-125, 40), (-125, 49), (-130, 55), (-140, 60), (-155, 58), (-165, 60)],
-     "N. AMERICA", -100, 66),
+     "N. AMERICA", -85, 70),
     ([(-79, 9), (-77, 4), (-80, -3), (-81, -6), (-77, -12), (-72, -18), (-70, -23),
       (-70, -30), (-72, -37), (-73, -44), (-70, -50), (-68, -55), (-65, -55), (-62, -48),
       (-58, -38), (-52, -32), (-48, -28), (-41, -23), (-35, -9), (-35, -6), (-44, -3),
@@ -1235,13 +1312,13 @@ LAND = [
       (8, 57), (10, 59), (5, 60), (5, 62), (12, 65), (18, 69), (25, 71), (30, 70),
       (35, 68), (40, 68), (45, 65), (48, 60), (45, 55), (40, 50), (38, 46), (32, 46),
       (28, 45), (23, 40), (26, 38), (23, 36), (19, 40), (15, 44), (12, 44), (8, 44),
-      (3, 42), (-9, 37)], "EUROPE", -28, 52),
+      (3, 42), (-9, 37)], "EUROPE", -8, 60),
     ([(-5, 50), (-3, 53), (-5, 56), (-3, 58), (-1, 57), (0, 53)], None, None, None),
     ([(-17, 15), (-16, 20), (-13, 27), (-10, 31), (-6, 35), (0, 36), (10, 37), (11, 34),
       (20, 32), (25, 32), (30, 31), (32, 31), (35, 28), (37, 22), (39, 18), (43, 12),
       (48, 11), (51, 10), (46, 5), (41, 0), (40, -5), (40, -10), (36, -18), (33, -26),
       (28, -33), (20, -35), (17, -32), (15, -27), (12, -18), (13, -12), (9, -1), (9, 4),
-      (-8, 4), (-13, 8), (-17, 12)], "AFRICA", 8, -8),
+      (-8, 4), (-13, 8), (-17, 12)], "AFRICA", -2, -22),
     ([(44, -16), (47, -15), (50, -16), (49, -20), (45, -25), (43, -22)], None, None, None),
     ([(30, 70), (40, 68), (50, 69), (60, 69), (70, 72), (80, 73), (90, 75), (100, 77),
       (110, 74), (120, 73), (130, 72), (140, 72), (150, 70), (160, 69), (170, 67),
@@ -1288,7 +1365,7 @@ for n, (lo, la, dx, dy) in PINS.items():
     nf = font(SANSB, 12)
     d.text((cx - d.textlength(str(n), font=nf) / 2, cy - 8), str(n), font=nf,
            fill=(255, 255, 255))
-ly = by + 216
+ly = by + 206
 lx_leg = mx + 12
 for col, label in [(BLUE, "Europe"), (CRIMSON, "Asia"), (GREEN, "Africa"),
                    (PURPLE, "N. America"), (TEAL, "Climate")]:
@@ -1297,17 +1374,18 @@ for col, label in [(BLUE, "Europe"), (CRIMSON, "Asia"), (GREEN, "Africa"),
     d.text((lx_leg, ly), label, font=font(SANSB, 10), fill=GREY)
     lx_leg += d.textlength(label, font=font(SANSB, 10)) + 12
 
-# stat strip: four key numbers of the day, each matching a figure
-# already shown in a panel above (no new facts here)
+# the day in numbers: four key figures of the day, each matching a
+# figure already shown in a panel above (no new facts here)
+d.text((mx + 12, by + 222), "THE DAY IN NUMBERS", font=font(SANSB, 11), fill=RED)
 STATS = [("11,000+", "Ebola cases in DR Congo", GREEN),
          ("5,412", "US measles cases in 2026", PURPLE),
          ("-566", "Dow points", CRIMSON),
          ("Cat 5", "Cyclone Xavier", TEAL)]
 sw = (mw - 24 - 3 * 8) // 4
-sy0 = by + 232
+sy0 = by + 238
 for i, (num, lab, col) in enumerate(STATS):
     bx0 = mx + 12 + i * (sw + 8)
-    d.rounded_rectangle([bx0, sy0, bx0 + sw, sy0 + 52], radius=4,
+    d.rounded_rectangle([bx0, sy0, bx0 + sw, sy0 + 48], radius=4,
                         fill=(255, 255, 255), outline=col, width=2)
     d.rectangle([bx0 + 2, sy0 + 2, bx0 + sw - 2, sy0 + 6], fill=col)
     nf = font(SANSB, 15)
@@ -1316,7 +1394,7 @@ for i, (num, lab, col) in enumerate(STATS):
     d.text((bx0 + (sw - d.textlength(num, font=nf)) / 2, sy0 + 5), num, font=nf, fill=col)
     lf = font(SANS, 8)
     for k, ln in enumerate(wrap(lab, lf, sw - 8)[:2]):
-        d.text((bx0 + (sw - d.textlength(ln, font=lf)) / 2, sy0 + 26 + k * 10), ln,
+        d.text((bx0 + (sw - d.textlength(ln, font=lf)) / 2, sy0 + 24 + k * 10), ln,
                font=lf, fill=(60, 60, 60))
 
 # also list (right)
