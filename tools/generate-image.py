@@ -358,19 +358,30 @@ d.text((112, 34), _date, font=font(SERIFB, _dsize), fill=(255, 255, 255))
 _sub = "Everything on this page happened, or was first reported, on Wednesday 18 November 2026."
 d.text((112, 92), _sub, font=font(SERIF, 14), fill=(198, 206, 218))
 
-# ---------- generated photos: real photographs composited into 4 panels ----------
+# ---------- generated photos: real photographs composited into all 13 panels ----------
 # The photos live in assets/ (committed to the repo) so the generator
 # runs offline and deterministically: same files, same fixed crops,
 # same bytes every run. Each entry is (file, focus): focus is the
 # fraction of the spare vertical range to skip when centre-cropping
 # the photo to the panel's wide aspect ratio, so the main subject
 # (explosion + warship, the two leaders' faces, the Capitol dome,
-# the dish + Earth) is never cut off.
+# the nurse + child, the PPE worker, the cyclone eye, the lit tents,
+# the driverless car, the frosted freezers, the dish + Earth, the
+# falling red chart, the launcher, the troops + flags) is never cut off.
 PHOTOS = {
     "gulf": ("panel1-gulf.jpg", 0.70),
     "apec": ("panel2-apec.jpg", 0.30),
     "senate": ("panel3-capitol.jpg", 0.10),
+    "measles": ("panel4-measles.jpg", 0.60),
+    "ebola": ("panel5-ebola.jpg", 0.35),
+    "cyclone": ("panel6-xavier.jpg", 0.50),
+    "gaza": ("panel7-gaza.jpg", 0.45),
+    "waymo": ("panel8-waymo.jpg", 0.45),
+    "cyber": ("panel9-freezer.jpg", 0.30),
     "voyager": ("panel10-voyager.jpg", 0.30),
+    "markets": ("panel11-markets.jpg", 0.35),
+    "patriot": ("panel12-patriot.jpg", 0.40),
+    "border": ("panel13-border.jpg", 0.40),
 }
 _photo_cache = {}
 
